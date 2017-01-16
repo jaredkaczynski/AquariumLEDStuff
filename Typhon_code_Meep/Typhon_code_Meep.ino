@@ -1,4 +1,3 @@
-
 /*
 This sketch was made for use with the Typhon LED Controller by A. Rajamani.
 Very special thanks to jedimasterben of nano-reef.com and stevesleds.com for supplying the Typhon controller for testing.
@@ -63,6 +62,7 @@ int dyear;
 struct lightingchannel
 {
   byte dim;
+  byte goalvalue;
   byte test;
   byte value[7]; //0 is dawnstart, 1 is dawnend, 2 is duskstart, 3 is duskend, 4 is moonlight. 5 is parabola or not.
   byte time[9]; //0 is dawn start hour, 1 is minute, 2 is dawn end hour, 3 is minute, 4 dusk start hour, 5 is minute, 6 is dusk end hour, 7 is minute.
@@ -73,9 +73,10 @@ struct lightingchannel
   long current;
   float dawnmeep;
   float nightmeep;
-  int pin;
+  int pin; 
 };
-lightingchannel ch[5];
+
+lightingchannel ch[6];
 
 //pins for lights
 const byte onepin = 3;
@@ -184,7 +185,11 @@ void assignValues(){
 
 void loop()
 {
+  //timeloop does most of the major light work
   timeLoop();
+  //change brightness smoothly transitions between light changes 
+  //This is for future use to manually control light over wifi or similar
+  change_brightness();
 }
 
 void timeLoop()
@@ -196,7 +201,8 @@ void timeLoop()
   ddate = day();          // 1-31
   dmonth = month();          // 1-12
   dyear = year();
-
+  
+  //Run once a second
   if(lastsec != dsecond)
   {
     lastsec = dsecond;
@@ -210,6 +216,24 @@ void lightDisplay()
   {
     lightLoop(i);
   }
+}
+
+//Handle light logic to actually change the light value
+//This results in smoother transitions between lighting levels
+//This will always be the way levels change utilizing goalValues as the way for changes to occur elsewhere
+
+void change_brightness(){
+  for(int i = 0; i<6; i++){
+       if(ch[i].dim!=ch[i].goalvalue){
+           int delta = 1; // value to change the currentvalue by
+           if(ch[i].goalvalue<ch[i].dim){ //if the goal is less than the current value subtract obviously
+               delta = -1;
+           }
+           //adjust the current light level 
+           ch[i].dim+=delta;
+           analogWrite(ch[i].pin,ch[i].dim);
+       }
+    } 
 }
 
 void lightLoop(int b)
@@ -275,8 +299,10 @@ void lightLoop(int b)
   {
     ch[b].dim = ch[b].test;
   }
-
-  analogWrite(ch[b].pin, (ch[b].dim*accpercent/100));
+  //setting the channel goal value
+  ch[b].goalvalue = (ch[b].dim*accpercent/100);
+  //moved the lighting adjustment to a smooth management method to allow smooth manual adjustment
+  //analogWrite(ch[b].pin, (ch[b].dim*accpercent/100));
   Serial.println(ch[b].pin);
   Serial.println(ch[b].dim*accpercent/100);
   Serial.println(second());

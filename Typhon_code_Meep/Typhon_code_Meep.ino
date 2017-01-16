@@ -76,7 +76,10 @@ struct lightingchannel
   int pin; 
 };
 
-lightingchannel ch[6];
+//Number of lighting channels
+const int channel_count = 6;
+
+lightingchannel ch[channel_count];
 
 //pins for lights
 const byte onepin = 3;
@@ -223,11 +226,15 @@ void lightDisplay()
 //This will always be the way levels change utilizing goalValues as the way for changes to occur elsewhere
 
 void change_brightness(){
-  for(int i = 0; i<6; i++){
+  for(int i = 0; i<channel_count; i++){
        if(ch[i].dim!=ch[i].goalvalue){
            int delta = 1; // value to change the currentvalue by
            if(ch[i].goalvalue<ch[i].dim){ //if the goal is less than the current value subtract obviously
                delta = -1;
+           }
+           //Speed up if there's a large delta
+           if(ch[i].goalvalue-ch[i].dim > 20){
+               delta*=5;
            }
            //adjust the current light level 
            ch[i].dim+=delta;

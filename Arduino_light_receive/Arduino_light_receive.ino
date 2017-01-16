@@ -1,22 +1,26 @@
 
 #include <VirtualWire.h>
 
-
+//RF pin
 const int receive_pin = 2;
+//LED Channel pins
 const int LEDPins[6] = {3,5,6,10,11,12};
-//int LEDValue[6]={100,150,50,1,1,1}; //5000k blue 3000k renamed to currentvalue
+//Holds the goal LED values
 int goalValue[6];
+//Holds the current channel values
 int currentValue[6]={100,150,50,1,1,1}; //5000k blue 3000k
 void setup()
 {
     Serial.begin(9600);  // Debugging only
     Serial.println("setup");
+    //Setting LED pins for output
     for(int i = 0; i < 6; i++)
     {
       pinMode(LEDPins[i], OUTPUT);
       Serial.println("setup LED Output" + i);
     }
     // Initialise the IO and ISR
+    //Virtual wire aka RF stuff
     vw_setup(2000);  // Bits per sec
     vw_set_rx_pin(receive_pin);
     vw_rx_start();       // Start the receiver PLL running
@@ -38,12 +42,11 @@ void check_messages(){
       LEDChannel[0] = buf[0];
       LEDChannel[1] = '\0';
       Serial.println("PWM Value Pre value" + atoi(buffer));
-      //analogWrite(currentValue[0],1); should this exist?
       int nb = atoi(LEDChannel);
       int n = atoi(buffer);
-      if(nb > 0 && nb < 7){
-      if(n > -1 && n < 256){
-      currentValue[nb-1]=n;
+      if(nb >= 0 && nb < 6){ // check range of light channel
+      if(n >= 0 && n < 256){ //check range of value
+      goalValue[nb-1]=n; //set the goal value for this channel to this amount
       Serial.println("PWM Pin" + nb);
       Serial.println("PWM Value" + atoi(buffer));
        }
@@ -55,7 +58,7 @@ void check_messages(){
 //This results in smoother transitions between lighting levels
 //This will always be the way levels change utilizing goalValues as the way for changes to occur elsewhere
 
-void do_light(){
+void change_brightness(){
   for(int i = 0; i<6; i++){
        if(goalValue[i]!=currentValue[i]){
            int delta = 1; // value to change the currentvalue by
@@ -70,7 +73,7 @@ void do_light(){
 
 void loop()
 {
-    check_messages();
-    do_light();
+    check_messages(); //See if there's any new commands to change the lighting value
+    change_brightness();
     
 }

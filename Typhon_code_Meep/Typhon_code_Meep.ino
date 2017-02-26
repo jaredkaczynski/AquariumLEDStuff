@@ -1,3 +1,5 @@
+#include <DS1307RTC.h>
+
 /*
 This sketch was made for use with the Typhon LED Controller by A. Rajamani.
 Very special thanks to jedimasterben of nano-reef.com and stevesleds.com for supplying the Typhon controller for testing.
@@ -11,6 +13,7 @@ Very special thanks to jedimasterben of nano-reef.com and stevesleds.com for sup
 #include <EEPROM.h>
 #include "math.h"
 #include <TimeLib.h>
+
 
 
 //lcd stuff
@@ -62,9 +65,7 @@ int dyear;
 struct lightingchannel
 {
   byte dim;
-  byte goalvalue;
   byte test;
-  byte startvalue = 255;
   byte value[7]; //0 is dawnstart, 1 is dawnend, 2 is duskstart, 3 is duskend, 4 is moonlight. 5 is parabola or not.
   byte time[9]; //0 is dawn start hour, 1 is minute, 2 is dawn end hour, 3 is minute, 4 dusk start hour, 5 is minute, 6 is dusk end hour, 7 is minute.
   long dawntime;
@@ -74,13 +75,9 @@ struct lightingchannel
   long current;
   float dawnmeep;
   float nightmeep;
-  int pin; 
+  int pin;
 };
-
-//Number of lighting channels
-const int channel_count = 6;
-
-lightingchannel ch[channel_count];
+lightingchannel ch[5];
 
 //pins for lights
 const byte onepin = 3;
@@ -99,7 +96,7 @@ void setup()
 {
   lightSetup();
   timeSetup();
-  setTime(18,25,0,16,1,17); // Set Time
+  setTime(15,10,0,20,1,17); // Set Time
   Serial.begin(9600);
   Serial.println("Setup 1");                               
 }
@@ -115,6 +112,7 @@ void timeSetup()
   dyear = year();
   lastsec = dsecond;
 }
+
 
 void lightSetup()
 {
@@ -137,63 +135,58 @@ void assignValues(){
   //0 is dawn start hour, 1 is minute, 2 is dawn end hour, 3 is minute, 4 dusk start hour, 5 is minute, 6 is dusk end h
   //ch[0].value = {10,155,155,10,10,1,0};
   ch[0].value[0] = 10;
-  ch[0].value[1] = 120;
-  ch[0].value[2] = 120;
+  ch[0].value[1] = 220;
+  ch[0].value[2] = 220;
   ch[0].value[3] = 10;
   ch[0].value[4] = 1;
   ch[0].value[5] = 1;
   //ch[1].value = {10,120,120,10,10,1,0};
   ch[1].value[0] = 10;
-  ch[1].value[1] = 155;
-  ch[1].value[2] = 155;
+  ch[1].value[1] = 255;
+  ch[1].value[2] = 255;
   ch[1].value[3] = 10;
   ch[1].value[4] = 0;
   ch[1].value[5] = 0;
   //ch[2].value = {10,65,65,10,10,1,0};
   ch[2].value[0] = 10;
-  ch[2].value[1] = 80;
-  ch[2].value[2] = 80;
+  ch[2].value[1] = 160;
+  ch[2].value[2] = 160;
   ch[2].value[3] = 10;
-  ch[2].value[4] = 1;
+  ch[2].value[4] = 0;
   ch[2].value[5] = 1;
   //ch[0].time = {5,30,9,30,18,0,19,30,0};
   ch[0].time[0] = 6;
-  ch[0].time[1] = 30;
+  ch[0].time[1] = 40;
   ch[0].time[2] = 9;
   ch[0].time[3] = 30;
-  ch[0].time[4] = 17;
+  ch[0].time[4] = 16;
   ch[0].time[5] = 30;
-  ch[0].time[6] = 20;
-  ch[0].time[7] = 0;
+  ch[0].time[6] = 17;
+  ch[0].time[7] = 40;
   
   //ch[1].time = {6,30,10,30,17,0,20,0,0};
   ch[1].time[0] = 8;
   ch[1].time[1] = 30;
   ch[1].time[2] = 10;
   ch[1].time[3] = 30;
-  ch[1].time[4] = 17;
-  ch[1].time[5] = 0;
-  ch[1].time[6] = 19;
-  ch[1].time[7] = 30;
+  ch[1].time[4] = 16;
+  ch[1].time[5] = 45;
+  ch[1].time[6] = 17;
+  ch[1].time[7] = 15;
   
   //ch[2].time = {5,30,8,30,18,0,19,0,0};
-  ch[2].time[0] = 5;
+  ch[2].time[0] = 6;
   ch[2].time[1] = 30;
   ch[2].time[2] = 8;
   ch[2].time[3] = 30;
-  ch[2].time[4] = 18;
-  ch[2].time[5] = 0;
-  ch[2].time[6] = 20;
-  ch[2].time[7] = 30;
+  ch[2].time[4] = 16;
+  ch[2].time[5] = 30;
+  ch[2].time[6] = 17;
+  ch[2].time[7] = 15;
 }
-
 void loop()
 {
-  //timeloop does most of the major light work
   timeLoop();
-  //change brightness smoothly transitions between light changes 
-  //This is for future use to manually control light over wifi or similar
-  change_brightness();
 }
 
 void timeLoop()
@@ -205,8 +198,6 @@ void timeLoop()
   ddate = day();          // 1-31
   dmonth = month();          // 1-12
   dyear = year();
-  
-  //Run once a second
   if(lastsec != dsecond)
   {
     lastsec = dsecond;
@@ -220,37 +211,6 @@ void lightDisplay()
   {
     lightLoop(i);
   }
-}
-
-//Handle light logic to actually change the light value
-//This results in smoother transitions between lighting levels
-//This will always be the way levels change utilizing goalValues as the way for changes to occur elsewhere
-
-void change_brightness(){
-  for(int i = 0; i<3; i++){
-       if(ch[i].startvalue!=ch[i].goalvalue){
-
-           int delta = 1; // value to change the currentvalue by
-           if(ch[i].goalvalue<ch[i].startvalue){ //if the goal is less than the current value subtract obviously
-               delta = -1;
-           }
-           Serial.println(ch[i].startvalue);
-           Serial.println(i);
-           //Speed up if there's a large delta
-           if(abs(ch[i].goalvalue-ch[i].startvalue) > 20){
-               delta*=2;
-           }
-           //Speed up if there's a large delta
-           if(abs(ch[i].goalvalue-ch[i].startvalue) > 100){
-               delta*=2;
-           }
-           //adjust the current light level 
-           ch[i].startvalue+=delta;
-           analogWrite(ch[i].pin,ch[i].startvalue);
-           Serial.print("adjusting ");
-           Serial.println(ch[i].startvalue);
-       }
-    } 
 }
 
 void lightLoop(int b)
@@ -316,13 +276,11 @@ void lightLoop(int b)
   {
     ch[b].dim = ch[b].test;
   }
-  //setting the channel goal value
-  ch[b].goalvalue = (ch[b].dim*accpercent/100);
-  //moved the lighting adjustment to a smooth management method to allow smooth manual adjustment
-  //analogWrite(ch[b].pin, (ch[b].dim*accpercent/100));
-  //Serial.print("adjusting ");
-  //Serial.println(ch[b].dim);
-  
+
+  analogWrite(ch[b].pin, (ch[b].dim*accpercent/100));
+  Serial.println(ch[b].pin);
+  Serial.println(ch[b].dim*accpercent/100);
+  Serial.println(second());
 }
   
 void lightingcalc(int c)
